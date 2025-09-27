@@ -4,7 +4,7 @@ info:
   description: API for a high-performance, next-generation payroll management system.
   version: 1.0.0
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:8080
     description: Local development server
 
 paths:
@@ -55,6 +55,106 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Employee'
+
+  /roles:
+    post:
+      summary: Create a New Role
+      description: Creates a new role configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleConfiguration'
+      responses:
+        '201':
+          description: Role created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleConfiguration'
+    get:
+      summary: List All Roles
+      description: Retrieves a list of all role configurations.
+      responses:
+        '200':
+          description: A list of role configurations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleConfiguration'
+
+  /roles/{role_id}:
+    put:
+      summary: Update a Role
+      description: Updates an existing role configuration.
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleConfiguration'
+      responses:
+        '200':
+          description: Role updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleConfiguration'
+    get:
+      summary: Get Role by ID
+      description: Retrieves a role configuration by its ID.
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleConfiguration'
+    delete:
+      summary: Delete a Role
+      description: Deletes a role configuration by its ID.
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Role deleted successfully.
+
+  /payroll:
+    post:
+      summary: Process Payroll
+      description: Processes payroll for a given set of employees and configurations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayrollRequest'
+      responses:
+        '200':
+          description: Payroll processed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollResponse'
 
   /payroll/run:
     post:
@@ -224,3 +324,388 @@ components:
         updated_at:
           type: string
           format: date-time
+    
+    CreatePayrollRequest:
+      type: object
+      required:
+        - employees
+        - company_config
+        - role_configs
+        - attendance_records
+        - period_start
+        - period_end
+        - additional_payments
+        - deductions
+      properties:
+        employees:
+          type: array
+          items:
+            $ref: '#/components/schemas/Employee'
+        company_config:
+          $ref: '#/components/schemas/CompanyConfiguration'
+        role_configs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleConfiguration'
+        attendance_records:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttendanceRecord'
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        additional_payments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdditionalPayment'
+        deductions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Deduction'
+
+    PayrollResponse:
+      type: object
+      required:
+        - success
+        - results
+        - errors
+        - processed_at
+      properties:
+        success:
+          type: boolean
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayrollCalculationResult'
+        errors:
+          type: array
+          items:
+            type: string
+        processed_at:
+          type: string
+          format: date-time
+
+    PayrollCalculationResult:
+      type: object
+      required:
+        - employee_id
+        - period_start
+        - period_end
+        - calculated_at
+        - total_working_days
+        - present_days
+        - absent_days
+        - leave_days
+        - holiday_days
+        - weekend_days
+        - base_salary
+        - effective_salary
+        - overtime_hours
+        - overtime_amount
+        - additional_payments
+        - gross_salary
+        - attendance_deductions
+        - leave_deductions
+        - other_deductions
+        - total_deductions
+        - net_salary
+        - currency
+        - calculation_steps
+      properties:
+        employee_id:
+          type: string
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        calculated_at:
+          type: string
+          format: date-time
+        total_working_days:
+          type: integer
+          format: int32
+        present_days:
+          type: integer
+          format: int32
+        absent_days:
+          type: integer
+          format: int32
+        leave_days:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        holiday_days:
+          type: integer
+          format: int32
+        weekend_days:
+          type: integer
+          format: int32
+        base_salary:
+          type: number
+          format: double
+        effective_salary:
+          type: number
+          format: double
+        overtime_hours:
+          type: number
+          format: double
+        overtime_amount:
+          type: number
+          format: double
+        additional_payments:
+          type: number
+          format: double
+        gross_salary:
+          type: number
+          format: double
+        attendance_deductions:
+          type: number
+          format: double
+        leave_deductions:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+        other_deductions:
+          type: number
+          format: double
+        total_deductions:
+          type: number
+          format: double
+        net_salary:
+          type: number
+          format: double
+        currency:
+          type: string
+        calculation_steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalculationStep'
+
+    CalculationStep:
+      type: object
+      required:
+        - step_type
+        - description
+        - amount
+      properties:
+        step_type:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+          format: double
+        details:
+          type: object
+          additionalProperties:
+            type: object # Can be any JSON value
+
+    CompanyConfiguration:
+      type: object
+      required:
+        - company_id
+        - name
+        - timezone
+        - weekly_off_days
+        - special_holidays
+        - working_days_per_month
+        - default_working_hours
+      properties:
+        company_id:
+          type: string
+        name:
+          type: string
+        timezone:
+          type: string
+        weekly_off_days:
+          type: array
+          items:
+            type: string
+            enum: [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+        special_holidays:
+          type: array
+          items:
+            type: string
+            format: date
+        working_days_per_month:
+          type: integer
+          format: int32
+        default_working_hours:
+          type: number
+          format: double
+
+    RoleConfiguration:
+      type: object
+      required:
+        - role_id
+        - role_name
+        - base_monthly_salary
+        - currency
+        - overtime_rate_multiplier
+        - leave_policies
+        - working_hours_per_day
+        - is_active
+      properties:
+        role_id:
+          type: string
+        role_name:
+          type: string
+        base_monthly_salary:
+          type: number
+          format: double
+        currency:
+          type: string
+        overtime_rate_multiplier:
+          type: number
+          format: double
+        leave_policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeavePolicy'
+        working_hours_per_day:
+          type: number
+          format: double
+        is_active:
+          type: boolean
+
+    LeavePolicy:
+      type: object
+      required:
+        - leave_type_id
+        - salary_deduction_percent
+        - requires_approval
+        - carry_forward_allowed
+      properties:
+        leave_type_id:
+          $ref: '#/components/schemas/LeaveTypeId'
+        salary_deduction_percent:
+          type: number
+          format: double
+        max_days_per_month:
+          type: integer
+          format: int32
+          nullable: true
+        max_days_per_year:
+          type: integer
+          format: int32
+          nullable: true
+        requires_approval:
+          type: boolean
+        carry_forward_allowed:
+          type: boolean
+
+    LeaveTypeId:
+      type: string
+
+    AttendanceRecord:
+      type: object
+      required:
+        - employee_id
+        - date
+        - status
+        - recorded_at
+        - recorded_by
+      properties:
+        employee_id:
+          type: string
+        date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/AttendanceStatus'
+        recorded_at:
+          type: string
+          format: date-time
+        recorded_by:
+          type: string
+
+    AttendanceStatus:
+      type: object
+      oneOf:
+        - properties:
+            Present:
+              type: object
+              required:
+                - hours_worked
+                - overtime_hours
+              properties:
+                hours_worked:
+                  type: number
+                  format: double
+                overtime_hours:
+                  type: number
+                  format: double
+        - properties:
+            Absent:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  nullable: true
+        - properties:
+            OnLeave:
+              type: object
+              required:
+                - leave_type_id
+              properties:
+                leave_type_id:
+                  $ref: '#/components/schemas/LeaveTypeId'
+                hours_deducted:
+                  type: number
+                  format: double
+                  nullable: true
+        - properties:
+            Holiday:
+              type: object
+        - properties:
+            WeekOff:
+              type: object
+
+    AdditionalPayment:
+      type: object
+      required:
+        - id
+        - name
+        - amount
+        - is_taxable
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        amount:
+          type: number
+          format: double
+        is_taxable:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+
+    Deduction:
+      type: object
+      required:
+        - id
+        - name
+        - amount
+        - is_pre_tax
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        amount:
+          type: number
+          format: double
+        is_pre_tax:
+          type: boolean
+        description:
+          type: string
+          nullable: true

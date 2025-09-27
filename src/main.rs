@@ -1,46 +1,39 @@
-// src/main.rs
-mod db;
-mod models;
-mod routes;
+use actix_files as fs;
+use actix_web::{web, App, HttpServer, get};
+use basics::services::payroll_service::PayrollService;
+use basics::web::routes::configure_routes;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use actix_cors::Cors;
 
-use axum::Router;
-use db::init_db;
-use tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer};
-use tokio::net::TcpListener;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+#[get("/docs")]
+async fn redirect_to_docs() -> impl actix_web::Responder {
+    actix_web::HttpResponse::Found()
+        .append_header((actix_web::http::header::LOCATION, "/docs/"))
+        .finish()
+}
 
-#[tokio::main]
-async fn main() {
-    dotenvy::dotenv().ok();
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    println!("🚀 Starting server at http://127.0.0.1:8080");
 
-    // Initialize tracing for logging and observability
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "advanced_payroll=debug,tower_http=debug".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    // Create an Arc<Mutex<>> for the PayrollService
+    let payroll_service = Arc::new(Mutex::new(PayrollService::new()));
 
-    let pool = init_db().await;
+    HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
 
-    // Define CORS layer
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
-    // Build the application with routes, CORS, and tracing
-    let app = Router::new()
-        .merge(routes::routes(pool))
-        .layer(cors)
-        .layer(TraceLayer::new_for_http());
-
-    let addr = "0.0.0.0:3000";
-    let listener = TcpListener::bind(addr).await.unwrap();
-
-    tracing::debug!("🚀 Server listening on {}", addr);
-
-    axum::serve(listener, app)
-        .await
-        .unwrap();
+        App::new()
+            .wrap(cors)
+            .app_data(web::Data::new(payroll_service.clone()))
+            .configure(configure_routes)
+            .service(redirect_to_docs)
+            .service(fs::Files::new("/docs", "./api-docs").index_file("scalar.html"))
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }

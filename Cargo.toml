@@ -1,15 +1,22 @@
-# Cargo.toml
 [package]
-name = "advanced-payroll"
+name = "basics"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "basics"
+path = "src/lib.rs"
+
 [dependencies]
+actix-web = "4"
+actix-files = "0.6"
+actix-cors = "0.7"
+
 # Core Web Framework
 axum = { version = "0.7", features = ["macros", "ws"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.0", features = ["full", "sync", "macros"] }
 
 # Database & ORM
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
