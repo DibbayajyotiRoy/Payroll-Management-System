@@ -1,0 +1,79 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Rust Payroll SDK",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "theme": "mint",
+  "colors": {
+    "primary": "#FF7F50",
+    "light": "#FFAC8C",
+    "dark": "#D96A42"
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@example.com"
+    }
+  ],
+  "api": {
+    "baseUrl": "http://127.0.0.1:8080",
+    "openapi": "./openapi.yaml"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": [
+              "introduction"
+            ]
+          },
+          {
+            "group": "Employees",
+            "pages": [
+              "/api-reference/employees/list-all-employees",
+              "/api-reference/employees/create-a-new-employee",
+              "/api-reference/employees/get-employee-by-id"
+            ]
+          },
+          {
+            "group": "Roles & Configuration",
+            "pages": [
+              "/api-reference/roles-&-configuration/list-all-roles",
+              "/api-reference/roles-&-configuration/create-a-new-role",
+              "/api-reference/roles-&-configuration/get-role-by-id",
+              "/api-reference/roles-&-configuration/update-a-role",
+              "/api-reference/roles-&-configuration/delete-a-role"
+            ]
+          },
+          {
+            "group": "Payroll Automation",
+            "pages": [
+              "/api-reference/payroll-automation/get-payroll-run-status"
+            ]
+          },
+          {
+            "group": "Payroll Scheduling",
+            "pages": [
+              "/api-reference/payroll-scheduling/create-or-update-a-payroll-schedule",
+              "/api-reference/payroll-scheduling/get-a-companys-payroll-schedule",
+              "/api-reference/payroll-scheduling/toggle-a-payroll-schedules-active-status"
+            ]
+          },
+          {
+            "group": "(Placeholders) Future Features",
+            "pages": [
+              "/api-reference/placeholders-future-features/manually-trigger-a-payroll-run",
+              "/api-reference/placeholders-future-features/get-analytics-reports"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
