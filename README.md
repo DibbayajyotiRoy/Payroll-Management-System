@@ -131,8 +131,8 @@ A high-performance, next-generation payroll management system built with Rust, A
 The system is composed of three main components that run as separate processes:
 
 - **Web Server (`basics`):** The main entry point for all API requests. It handles HTTP requests, validation, and calls the appropriate services.
-- **Background Worker (`worker`):** Responsible for processing long-running, asynchronous tasks such as sending emails, generating reports, or processing payroll batches.
-- **Scheduler (`scheduler`):** Manages and triggers scheduled tasks, such as running payroll on a specific date or generating monthly reports.
+- **Background Worker (`worker`):):** Responsible for processing long-running, asynchronous tasks such as sending emails, generating reports, or processing payroll batches.
+- **Scheduler (`scheduler`):** Manages and triggers scheduled tasks, suchs as running payroll on a specific date or generating monthly reports.
 
 This separation allows for independent scaling and development of each component.
 
@@ -150,7 +150,7 @@ This separation allows for independent scaling and development of each component
 1.  **Clone the repository:**
     ```bash
     git clone https://github.com/DibbayajyotiRoy/Payroll-Management-System
-    cd <your-repo-folder>
+    cd Payroll-Management-System
     ```
 
 2.  **Set up the environment:**
@@ -192,6 +192,21 @@ The API is documented using the OpenAPI standard. You can access the interactive
 2.  **Offline:** Open the `api-docs/scalar.html` or `api-docs/swagger.html` files directly in your browser.
 
 The documentation provides a list of all available endpoints, their parameters, and response objects. You can also use the interactive interface to send test requests to the API.
+
+## Python SDK
+
+A Python SDK is available to interact with this API, simplifying client-side integration.
+
+-   **PyPI Package:** [dibbayajyotiroy-payroll-sdk](https://pypi.org/project/dibbayajyotiroy-payroll-sdk/)
+-   **Documentation:** [https://dibbayajyotiroy.mintlify.app/](https://dibbayajyotiroy.mintlify.app/)
+
+### Installation
+
+You can install the SDK using pip:
+
+```bash
+pip install dibbayajyotiroy-payroll-sdk
+```
 
 ## Testing
 
