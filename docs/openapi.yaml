@@ -1,0 +1,640 @@
+openapi: 3.1.0
+info:
+  title: Rust Payroll System API  v1.0
+  description: |
+    A high-performance, next-generation payroll management system API.
+    This documentation provides detailed information on all available endpoints for managing employees, configuring payroll rules, and automating payroll runs.
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local Development Server
+
+# Group endpoints for better organization in UI tools
+tags:
+  - name: Employees
+    description: Operations for managing employee records.
+  - name: Roles & Configuration
+    description: Endpoints for creating and managing payroll role configurations.
+  - name: Payroll Automation
+    description: Endpoints related to executing and viewing payroll runs.
+  - name: Payroll Scheduling
+    description: Endpoints for configuring when payrolls should run automatically.
+  - name: (Placeholders) Future Features
+    description: Endpoints for future AI and self-service features.
+
+paths:
+  # --- Employee Endpoints ---
+  /employees:
+    post:
+      tags: [Employees]
+      summary: Create a New Employee
+      description: Creates a new employee record. This endpoint is a placeholder and does not yet connect to the database.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployee'
+      responses:
+        '201':
+          description: Employee created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+    get:
+      tags: [Employees]
+      summary: List All Employees
+      description: Retrieves a list of all employee records. This is a placeholder.
+      responses:
+        '200':
+          description: A list of employees.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Employee'
+  
+  /employees/{id}:
+    get:
+      tags: [Employees]
+      summary: Get Employee by ID
+      description: Retrieves a single employee by their unique ID. This is a placeholder.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the employee.
+          schema:
+            type: string
+            format: uuid
+            example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+      responses:
+        '200':
+          description: The full employee object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '404':
+          description: Employee not found.
+
+  # --- Role Configuration Endpoints ---
+  /roles:
+    post:
+      tags: [Roles & Configuration]
+      summary: Create a New Role
+      description: Creates a new role configuration, defining salary, leave, and overtime policies for a group of employees.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+            example:
+              company_id: "COMP001"
+              role_name: "Senior Software Engineer"
+              schema_version: "1.0"
+              base_salary_minor_units: 12000000
+              currency: "USD"
+              overtime_policy:
+                weekday_multiplier: 1.5
+                weekend_multiplier: 2.0
+                holiday_multiplier: 2.5
+              leave_policies:
+                - leave_type_id: "SICK"
+                  leave_type_name: "Sick Leave"
+                  deduction:
+                    type: "percent"
+                    value: 0
+                - leave_type_id: "UNPAID"
+                  leave_type_name: "Unpaid Leave"
+                  deduction:
+                    type: "percent"
+                    value: 100
+              working_hours_per_day: 8.0
+              working_days_per_week: 5
+              is_active: true
+      responses:
+        '201':
+          description: Role created successfully. Returns the newly created role configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleConfiguration'
+        '400':
+          description: Bad request due to invalid input data.
+    get:
+      tags: [Roles & Configuration]
+      summary: List All Roles
+      description: Retrieves a list of all role configurations in the system.
+      responses:
+        '200':
+          description: A list of role configurations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleConfiguration'
+
+  /roles/{role_id}:
+    put:
+      tags: [Roles & Configuration]
+      summary: Update a Role
+      description: Updates an existing role configuration by its ID.
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          description: The unique identifier for the role.
+          schema:
+            type: string
+            example: "role_a1b2c3d4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleConfiguration'
+      responses:
+        '200':
+          description: Role updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleConfiguration'
+        '404':
+          description: Role with the specified ID not found.
+    get:
+      tags: [Roles & Configuration]
+      summary: Get Role by ID
+      description: Retrieves a specific role configuration by its ID.
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          description: The unique identifier for the role.
+          schema:
+            type: string
+            example: "role_a1b2c3d4"
+      responses:
+        '200':
+          description: The requested role configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleConfiguration'
+        '404':
+          description: Role with the specified ID not found.
+    delete:
+      tags: [Roles & Configuration]
+      summary: Delete a Role
+      description: Deletes a role configuration by its ID.
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          description: The unique identifier for the role.
+          schema:
+            type: string
+            example: "role_a1b2c3d4"
+      responses:
+        '204':
+          description: Role deleted successfully.
+        '404':
+          description: Role with the specified ID not found.
+          
+  # --- Payroll Automation & Scheduling Endpoints ---
+  /payroll/runs/{run_id}:
+    get:
+      tags: [Payroll Automation]
+      summary: Get Payroll Run Status
+      description: Fetches the status and results of a specific automated payroll run.
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          description: The UUID of the payroll run job.
+          schema:
+            type: string
+            format: uuid
+            example: "f4g5h6j7-k8l9-1011-1213-141516abcdef"
+      responses:
+        '200':
+          description: The status and details of the payroll run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollRun'
+        '404':
+          description: Payroll run with the specified ID not found.
+
+  /schedule:
+    post:
+      tags: [Payroll Scheduling]
+      summary: Create or Update a Payroll Schedule
+      description: Sets or updates the automated payroll schedule for a company. This is based on the day of the month.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleRequest'
+      responses:
+        '200':
+          description: The payroll schedule was successfully created or updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollSchedule'
+
+  /schedule/{company_id}:
+    get:
+      tags: [Payroll Scheduling]
+      summary: Get a Company's Payroll Schedule
+      description: Retrieves the current payroll schedule for a specific company.
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          description: The unique identifier of the company.
+          schema:
+            type: string
+            example: "COMP001"
+      responses:
+        '200':
+          description: The company's payroll schedule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollSchedule'
+        '404':
+          description: Schedule not found for the specified company.
+
+  /schedule/{company_id}/toggle:
+    post:
+      tags: [Payroll Scheduling]
+      summary: Toggle a Payroll Schedule's Active Status
+      description: Activates or deactivates a company's automated payroll schedule.
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          description: The unique identifier of the company.
+          schema:
+            type: string
+            example: "COMP001"
+      responses:
+        '200':
+          description: The updated payroll schedule with the new active status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollSchedule'
+        '404':
+          description: Schedule not found for the specified company.
+
+  # --- Future Feature Placeholders ---
+  /payroll/run:
+    post:
+      tags: [(Placeholders) Future Features]
+      summary: Manually Trigger a Payroll Run
+      description: Manually initiates a payroll run. This is a placeholder for a future feature.
+      responses:
+        '202':
+          description: Payroll run accepted for processing.
+  /analytics/reports:
+    get:
+      tags: [(Placeholders) Future Features]
+      summary: Get Analytics Reports
+      description: Fetches AI-powered analytics. This is a placeholder for a future feature.
+      responses:
+        '200':
+          description: Analytics report.
+  
+components:
+  schemas:
+    # --- Request Schemas ---
+    CreateEmployee:
+      type: object
+      description: "Payload for creating a new employee."
+      required: [first_name, last_name, email, department, position, salary_info]
+      properties:
+        first_name:
+          type: string
+          example: "Jane"
+        last_name:
+          type: string
+          example: "Doe"
+        email:
+          type: string
+          format: email
+          example: "jane.doe@example.com"
+        department:
+          type: string
+          example: "Engineering"
+        position:
+          type: string
+          example: "Senior Software Developer"
+        salary_info:
+          $ref: '#/components/schemas/SalaryInfo'
+
+    CreateRoleRequest:
+      type: object
+      description: "Payload for creating a new role configuration."
+      required: [company_id, role_name, base_salary_minor_units, currency, overtime_policy, leave_policies, working_hours_per_day, working_days_per_week, is_active]
+      properties:
+        company_id:
+          type: string
+          description: "The ID of the company this role belongs to."
+          example: "COMP001"
+        role_name:
+          type: string
+          description: "The human-readable name of the role."
+          example: "Software Engineer"
+        schema_version:
+          type: string
+          description: "The version of this configuration schema."
+          example: "1.0"
+        base_salary_minor_units:
+          type: integer
+          format: int64
+          description: "Base monthly salary in the smallest currency unit (e.g., cents) to avoid floating-point issues."
+          example: 12000000
+        currency:
+          type: string
+          description: "The ISO 4217 currency code."
+          example: "USD"
+        overtime_policy:
+          $ref: '#/components/schemas/OvertimePolicy'
+        leave_policies:
+          type: array
+          description: "A list of policies for different types of leave."
+          items:
+            $ref: '#/components/schemas/LeavePolicy'
+        working_hours_per_day:
+          type: number
+          format: double
+          example: 8.0
+        working_days_per_week:
+          type: integer
+          example: 5
+        is_active:
+          type: boolean
+          example: true
+
+    ScheduleRequest:
+      type: object
+      description: "Payload for creating or updating a payroll schedule."
+      required: [company_id, run_day_of_month]
+      properties:
+        company_id:
+          type: string
+          description: "The ID of the company to schedule payroll for."
+          example: "COMP001"
+        run_day_of_month:
+          type: integer
+          description: "The day of the month (1-31) to run the payroll."
+          example: 28
+          minimum: 1
+          maximum: 31
+
+    # --- Data Models & Responses ---
+    Employee:
+      type: object
+      description: "Represents a full employee record in the system."
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: "The unique identifier for the employee."
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        employee_id:
+          type: string
+          description: "The human-readable employee ID."
+          example: "EMP-12345"
+        first_name:
+          type: string
+          example: "Jane"
+        last_name:
+          type: string
+          example: "Doe"
+        email:
+          type: string
+          format: email
+          example: "jane.doe@example.com"
+        phone:
+          type: string
+          nullable: true
+          example: "555-123-4567"
+        hire_date:
+          type: string
+          format: date
+          example: "2025-09-21"
+        department:
+          type: string
+          example: "Engineering"
+        position:
+          type: string
+          example: "Senior Software Developer"
+        status:
+          type: string
+          example: "Active"
+        salary_info:
+          $ref: '#/components/schemas/SalaryInfo'
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-09-21T18:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-09-21T18:00:00Z"
+        
+    RoleConfiguration:
+      allOf:
+        - $ref: '#/components/schemas/CreateRoleRequest'
+        - type: object
+          properties:
+            role_id:
+              type: string
+              description: "Unique identifier for the role configuration, generated on creation."
+              example: "role_2a5f..."
+    
+    OvertimePolicy:
+      type: object
+      description: "Rules defining multipliers for overtime pay."
+      properties:
+        weekday_multiplier:
+          type: number
+          format: double
+          example: 1.5
+        weekend_multiplier:
+          type: number
+          format: double
+          example: 2.0
+        holiday_multiplier:
+          type: number
+          format: double
+          example: 2.5
+
+    LeavePolicy:
+      type: object
+      description: "Defines the rules for a specific type of leave."
+      properties:
+        leave_type_id:
+          type: string
+          description: "Unique identifier for the leave type (e.g., 'SICK', 'UNPAID')."
+          example: "SICK"
+        leave_type_name:
+          type: string
+          description: "Human-readable name of the leave type."
+          example: "Sick Leave"
+        deduction:
+          $ref: '#/components/schemas/LeavePolicyDeduction'
+
+    LeavePolicyDeduction:
+      type: object
+      description: "Defines how much salary is deducted for this leave type."
+      properties:
+        type:
+          type: string
+          enum: [percent, flat, none]
+          description: "The type of deduction: 'percent' of daily salary, 'flat' amount, or 'none'."
+          example: "percent"
+        value:
+          type: number
+          description: "The value of the deduction. For 'percent', this is 0-100. For 'flat', it's a monetary value."
+          example: 0
+
+    SalaryInfo:
+      type: object
+      properties:
+        base_salary:
+          type: number
+          description: "The base salary amount."
+          example: 120000
+        currency:
+          type: string
+          description: "ISO 4217 currency code."
+          example: "USD"
+        pay_frequency:
+          type: string
+          enum: [Weekly, BiWeekly, Monthly]
+          example: "BiWeekly"
+        overtime_rate:
+          type: number
+          example: 55.0
+
+    PayrollCalculationResult:
+      type: object
+      description: "Detailed results of a payroll calculation for a single employee."
+      properties:
+        employee_id:
+          type: string
+          example: "EMP-12345"
+        period_start:
+          type: string
+          format: date
+          example: "2025-10-01"
+        period_end:
+          type: string
+          format: date
+          example: "2025-10-31"
+        net_salary:
+          type: number
+          format: double
+          description: "The final take-home pay for the employee."
+          example: 4325.75
+        gross_salary:
+          type: number
+          format: double
+          description: "Total earnings before any deductions."
+          example: 5100.50
+        total_deductions:
+          type: number
+          format: double
+          description: "The sum of all deductions."
+          example: 774.75
+
+    PayrollSchedule:
+      type: object
+      description: "Configuration for when a company's payroll should run."
+      properties:
+        id:
+          type: integer
+          description: "Unique identifier for the schedule."
+          readOnly: true
+        company_id:
+          type: string
+          description: "The company this schedule belongs to."
+          example: "COMP001"
+        run_day_of_month:
+          type: integer
+          description: "The day of the month (1-31) the payroll is scheduled to run."
+          example: 28
+        is_active:
+          type: boolean
+          description: "Whether the automated payroll schedule is active."
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: "Timestamp of when the schedule was created."
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          description: "Timestamp of the last update to the schedule."
+          readOnly: true
+          
+    PayrollRun:
+      type: object
+      description: "Represents a single automated payroll run job."
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: "The unique identifier for the payroll run."
+        company_id:
+          type: string
+          description: "The company the payroll run is for."
+        schedule_id:
+          type: integer
+          description: "The ID of the schedule that triggered this run."
+        pay_period_start:
+          type: string
+          format: date
+        pay_period_end:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: "The current status of the payroll run."
+        results:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/PayrollCalculationResult'
+          description: "The final calculation results for each employee."
+        error_message:
+          type: string
+          nullable: true
+          description: "Any error message if the run failed."
+        created_at:
+          type: string
+          format: date-time
+          description: "When the job was created."
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "When the job processing started."
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "When the job processing finished (successfully or not)."
