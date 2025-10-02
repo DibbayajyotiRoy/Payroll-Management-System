@@ -1,14 +1,14 @@
 {
-  "name": "my-payroll-docs",
+  "name": "payroll-documentation",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "mintlify dev",
-    "build": "mintlify build",
-    "start": "mintlify start"
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
-    "mintlify": "^4.0.122",
+    "mintlify": "latest",
     "next": "^14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
