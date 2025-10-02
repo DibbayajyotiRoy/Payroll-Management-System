@@ -1,3 +1,5 @@
+// src/calculation/engine.rs
+
 use crate::domain::error::PayrollError;
 use crate::domain::models::*;
 use crate::calculation::types::*;
@@ -112,6 +114,7 @@ impl PayrollCalculationEngine {
                         },
                     }
                 } else {
+                    // If no record is found for a working day, it's considered an absence.
                     result.absent_days += 1;
                 }
             }
@@ -159,7 +162,6 @@ impl PayrollCalculationEngine {
             let overtime_policy: OvertimePolicy = from_value(request.role_config.overtime_policy.0.clone()).unwrap();
             let hourly_rate = result.base_salary / (result.total_working_days as f64 * request.role_config.working_hours_per_day);
             
-            // This is a simplified logic. A more robust implementation would check the day for each overtime entry.
             result.overtime_amount = result.overtime_hours * hourly_rate * overtime_policy.weekday_multiplier;
 
             result.calculation_steps.push(CalculationStep {
@@ -172,10 +174,11 @@ impl PayrollCalculationEngine {
                 details: None,
             });
         }
-
         Ok(())
     }
 
+    /// Handles deductions for days marked as 'Absent'.
+    /// An absence is always treated as 100% unpaid.
     fn calculate_attendance_deductions(&self, _request: &PayrollCalculationRequest, result: &mut PayrollCalculationResult) -> Result<(), PayrollError> {
         if result.absent_days > 0 {
             let daily_rate = result.base_salary / result.total_working_days as f64;
@@ -183,54 +186,78 @@ impl PayrollCalculationEngine {
 
             result.calculation_steps.push(CalculationStep {
                 step_type: "attendance_deduction".to_string(),
-                description: format!("Absent days deduction: {} days × {:.2} = {} {}",
+                description: format!("Deduction for Absent Days: {} days × {:.2} daily rate = {:.2} {}",
                                    result.absent_days, daily_rate,
                                    result.attendance_deductions, result.currency),
                 amount: result.attendance_deductions,
                 details: None,
             });
         }
-
         Ok(())
     }
 
+    /// Handles deductions for all types of leaves based on the configured policies.
+    /// This correctly processes fully paid (0% deduction), partially paid, and unpaid leaves.
     fn calculate_leave_deductions(&self, request: &PayrollCalculationRequest, result: &mut PayrollCalculationResult) -> Result<(), PayrollError> {
+        if result.leave_days.is_empty() {
+            return Ok(()); // No leaves to process, exit early.
+        }
+        
+        // First, calculate the value of one day's work.
         let daily_rate = if result.total_working_days > 0 {
             result.base_salary / result.total_working_days as f64
         } else {
             0.0
         };
 
-        let leave_policies: Vec<LeavePolicy> = from_value(request.role_config.leave_policies.0.clone()).unwrap_or_default();
+        // Deserialize the leave policies from the role configuration's JSONB field.
+        let leave_policies: Vec<LeavePolicy> = from_value(request.role_config.leave_policies.0.clone())
+            .map_err(|e| PayrollError::ValidationError(format!("Could not parse leave policies: {}", e)))?;
 
-        for (leave_type_id, days) in &result.leave_days {
-            if let Some(policy) = leave_policies.iter().find(|p| &p.leave_type_id == &leave_type_id.0) {
-                let deduction = match policy.deduction.deduction_type.as_str() {
-                    "percent" => (*days as f64) * daily_rate * (policy.deduction.value / 100.0),
-                    "flat" => policy.deduction.value,
-                    _ => 0.0,
-                };
-                result.leave_deductions.insert(leave_type_id.clone(), deduction);
+        // Iterate over each type of leave the employee took during the period.
+        for (leave_type_id, days_taken) in &result.leave_days {
+            // Find the policy from the role config that matches the current leave type.
+            let policy = leave_policies.iter().find(|p| p.leave_type_id == leave_type_id.0);
 
-                if deduction > 0.0 {
-                    result.calculation_steps.push(CalculationStep {
-                        step_type: "leave_deduction".to_string(),
-                        description: format!("Leave deduction ({}): {} days = {} {}",
-                                           policy.leave_type_name, days, deduction, result.currency),
-                        amount: deduction,
-                        details: None,
-                    });
+            let (deduction_amount, description) = match policy {
+                // A specific policy was found for this leave type.
+                Some(p) => {
+                    let deduction_per_day = match p.deduction.deduction_type.as_str() {
+                        // Calculate deduction based on a percentage of the daily rate.
+                        // e.g., value: 100.0 is unpaid, value: 50.0 is half-pay, value: 0.0 is fully paid.
+                        "percent" => daily_rate * (p.deduction.value / 100.0),
+                        // Use a fixed flat amount for deduction per day.
+                        "flat" => p.deduction.value,
+                        // Any other type (like "none") results in no deduction.
+                        _ => 0.0,
+                    };
+                    
+                    let total_deduction = deduction_per_day * (*days_taken as f64);
+                    let paid_percent = if p.deduction.deduction_type == "percent" { 100.0 - p.deduction.value } else { 100.0 };
+                    
+                    let desc = format!("Leave Deduction for '{}' ({}% paid): {} days × {:.2} deduction/day = {:.2} {}",
+                        p.leave_type_name, paid_percent, days_taken, deduction_per_day, total_deduction, result.currency);
+                    
+                    (total_deduction, desc)
+                },
+                // No policy was found for this leave type. Default to 100% unpaid for safety.
+                None => {
+                    let total_deduction = daily_rate * (*days_taken as f64);
+                    let desc = format!("Leave Deduction for '{}' (Policy not found, defaulted to 100% unpaid): {} days × {:.2} daily rate = {:.2} {}",
+                        leave_type_id.0, days_taken, daily_rate, total_deduction, result.currency);
+
+                    (total_deduction, desc)
                 }
-            } else {
-                let deduction = (*days as f64) * daily_rate;
-                result.leave_deductions.insert(leave_type_id.clone(), deduction);
+            };
+            
+            // If there's a deduction (i.e., not a fully paid leave), record it.
+            if deduction_amount > 0.0 {
+                result.leave_deductions.insert(leave_type_id.clone(), deduction_amount);
 
                 result.calculation_steps.push(CalculationStep {
                     step_type: "leave_deduction".to_string(),
-                    description: format!("Unknown leave type ({}): {} days × {:.2} = {} {}",
-                                       leave_type_id.0, days, daily_rate,
-                                       deduction, result.currency),
-                    amount: deduction,
+                    description,
+                    amount: deduction_amount,
                     details: None,
                 });
             }
@@ -255,7 +282,6 @@ impl PayrollCalculationEngine {
                 });
             }
         }
-
         Ok(())
     }
 
@@ -275,7 +301,6 @@ impl PayrollCalculationEngine {
                 });
             }
         }
-
         Ok(())
     }
 
@@ -293,7 +318,7 @@ impl PayrollCalculationEngine {
 
         result.calculation_steps.push(CalculationStep {
             step_type: "final_calculation".to_string(),
-            description: format!("Final: Gross {} - Deductions {} = Net {} {}",
+            description: format!("Final: Gross {:.2} - Total Deductions {:.2} = Net {:.2} {}",
                                result.gross_salary, result.total_deductions,
                                result.net_salary, result.currency),
             amount: result.net_salary,

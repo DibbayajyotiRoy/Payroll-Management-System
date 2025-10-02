@@ -4,13 +4,18 @@ CREATE TABLE leave_types (
     description TEXT
 );
 
+-- UPDATED to match the Rust struct in domain/models.rs
 CREATE TABLE role_configurations (
     role_id VARCHAR PRIMARY KEY,
+    company_id VARCHAR NOT NULL,
     role_name VARCHAR NOT NULL,
-    base_monthly_salary DOUBLE PRECISION NOT NULL,
+    schema_version VARCHAR NOT NULL,
+    base_salary_minor_units BIGINT NOT NULL,
     currency VARCHAR NOT NULL,
-    overtime_rate_multiplier DOUBLE PRECISION NOT NULL,
+    overtime_policy JSONB NOT NULL,
+    leave_policies JSONB NOT NULL,
     working_hours_per_day DOUBLE PRECISION NOT NULL,
+    working_days_per_week INTEGER NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
@@ -39,7 +44,7 @@ CREATE TYPE attendance_status_enum AS ENUM ('present', 'absent', 'on_leave', 'ho
 
 CREATE TABLE attendance_records (
     id SERIAL PRIMARY KEY,
-    employee_id VARCHAR NOT NULL REFERENCES employees(employee_id),
+    employee_id VARCHAR NOT NULL,
     date DATE NOT NULL,
     status attendance_status_enum NOT NULL,
     hours_worked DOUBLE PRECISION,

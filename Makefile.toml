@@ -1,0 +1,28 @@
+# Main task to start all development services
+[tasks.start-all]
+description = "Builds and runs the web server, worker, and scheduler in parallel."
+# First, ensure everything is compiled by running the 'build-all' task as a dependency.
+dependencies = ["build-all"]
+# After building, run the following tasks in parallel.
+run_task = { name = ["run-web", "run-worker", "run-scheduler"], parallel = true }
+
+# A single task to compile all binaries.
+[tasks.build-all]
+description = "Compiles all binaries."
+command = "cargo"
+args = ["build"]
+
+# --- Individual Run Tasks ---
+# These tasks directly execute the compiled binaries from the target/debug directory.
+
+[tasks.run-web]
+description = "Runs the main web server binary (basics)."
+command = "./target/debug/basics"
+
+[tasks.run-worker]
+description = "Runs the background worker binary."
+command = "./target/debug/worker"
+
+[tasks.run-scheduler]
+description = "Runs the scheduler binary."
+command = "./target/debug/scheduler"

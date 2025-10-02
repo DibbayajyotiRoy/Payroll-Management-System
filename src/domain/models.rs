@@ -1,12 +1,13 @@
-use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
-use diesel::prelude::*;
 use crate::schema::*;
-use diesel::sql_types::{Text, Jsonb};
+use chrono::NaiveDate;
 use diesel::deserialize::{self, FromSql};
-use diesel::serialize::{self, ToSql, Output};
+use diesel::prelude::*;
+use diesel::serialize::{self, Output, ToSql};
+use diesel::sql_types::{Jsonb, Text};
 use diesel::backend::Backend;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Text)]
@@ -28,14 +29,12 @@ where
     }
 }
 
-
 impl LeaveTypeId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
 }
 
-// Newtype wrapper for serde_json::Value to implement Diesel traits
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, FromSqlRow, AsExpression)]
 #[diesel(sql_type = Jsonb)]
 pub struct JsonbValue(pub Json);
@@ -89,6 +88,7 @@ pub struct LeavePolicy {
 #[diesel(primary_key(role_id))]
 pub struct RoleConfiguration {
     pub role_id: String,
+    pub company_id: String,
     pub role_name: String,
     pub schema_version: String,
     pub base_salary_minor_units: i64,
@@ -118,6 +118,7 @@ pub struct CompanyConfiguration {
 #[diesel(primary_key(employee_id))]
 pub struct Employee {
     pub employee_id: String,
+    pub company_id: String,
     pub name: String,
     pub email: String,
     pub role_id: String,
@@ -136,7 +137,6 @@ pub enum AttendanceStatus {
     WeekOff,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Insertable, AsChangeset, Associations, Identifiable)]
 #[diesel(belongs_to(Employee, foreign_key = employee_id))]
 #[diesel(table_name = attendance_records)]
@@ -153,4 +153,40 @@ pub struct AttendanceRecord {
     pub hours_deducted: Option<f64>,
     pub recorded_at: chrono::DateTime<chrono::Utc>,
     pub recorded_by: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, diesel_derive_enum::DbEnum)]
+#[ExistingTypePath = "crate::schema::sql_types::PayrollRunStatus"]
+pub enum PayrollRunStatus {
+    Pending,
+    Running,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Insertable, AsChangeset, Identifiable)]
+#[diesel(table_name = payroll_schedules)]
+pub struct PayrollSchedule {
+    pub id: i32,
+    pub company_id: String,
+    pub run_day_of_month: i16,
+    pub is_active: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Insertable, AsChangeset, Identifiable)]
+#[diesel(table_name = payroll_runs)]
+pub struct PayrollRun {
+    pub id: Uuid,
+    pub company_id: String,
+    pub schedule_id: i32,
+    pub pay_period_start: NaiveDate,
+    pub pay_period_end: NaiveDate,
+    pub status: PayrollRunStatus,
+    pub results: Option<JsonbValue>,
+    pub error_message: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
 }

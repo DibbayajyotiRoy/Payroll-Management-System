@@ -56,6 +56,7 @@ impl PayrollConfigurationBuilder {
 
         RoleConfiguration {
             role_id: "1".to_string(),
+            company_id: "COMP001".to_string(), // Add missing field
             role_name: "Software Engineer".to_string(),
             schema_version: "1.0".to_string(),
             base_salary_minor_units: 7500000,

@@ -1,5 +1,6 @@
 CREATE TABLE employees (
     employee_id VARCHAR PRIMARY KEY,
+    company_id VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
     email VARCHAR NOT NULL UNIQUE,
     role_id VARCHAR NOT NULL,

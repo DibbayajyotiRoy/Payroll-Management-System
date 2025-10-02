@@ -1,10 +1,10 @@
 use actix_web::{web, HttpResponse, Responder};
-
 use crate::db::DbPool;
-use crate::domain::models::{Employee, RoleConfiguration};
-use crate::schema::{employees, role_configurations};
+use crate::domain::models::{Employee, PayrollRun, RoleConfiguration};
+use crate::schema::{employees, payroll_runs, role_configurations};
 use diesel::prelude::*;
 use serde::Serialize;
+use uuid::Uuid;
 
 #[derive(Serialize)]
 struct PayrollSummary {
@@ -43,8 +43,6 @@ pub async fn calculate_payroll_handler(
     };
 
     let base_salary = role_config.base_salary_minor_units as f64 / 100.0;
-
-    // Simplified for now, as the full calculation is in PayrollCalculationEngine
     let deductions = 0.0;
     let net_salary = base_salary - deductions;
 
@@ -57,4 +55,24 @@ pub async fn calculate_payroll_handler(
     };
 
     HttpResponse::Ok().json(summary)
+}
+
+pub async fn get_payroll_run_status(
+    pool: web::Data<DbPool>,
+    path: web::Path<Uuid>,
+) -> impl Responder {
+    let mut conn = match pool.get() {
+        Ok(conn) => conn,
+        Err(_) => return HttpResponse::InternalServerError().finish(),
+    };
+    let run_id = path.into_inner();
+
+    match payroll_runs::table
+        .find(run_id)
+        .first::<PayrollRun>(&mut conn)
+    {
+        Ok(run) => HttpResponse::Ok().json(run),
+        Err(diesel::result::Error::NotFound) => HttpResponse::NotFound().body("Payroll run not found"),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
 }

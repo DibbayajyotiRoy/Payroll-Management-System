@@ -1,5 +1,8 @@
 use crate::calculation::types::{AdditionalPayment, Deduction, PayrollCalculationResult};
-use crate::domain::models::{AttendanceRecord, CompanyConfiguration, Employee, RoleConfiguration, LeavePolicy, OvertimePolicy};
+use crate::domain::models::{
+    AttendanceRecord, CompanyConfiguration, Employee, LeavePolicy, OvertimePolicy,
+    RoleConfiguration,
+};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +28,7 @@ pub struct PayrollResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateRoleRequest {
+    pub company_id: String, // <-- ADD THIS LINE
     pub role_name: String,
     pub schema_version: String,
     pub base_salary_minor_units: i64,
