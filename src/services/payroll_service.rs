@@ -2,12 +2,13 @@ use crate::api::types::{CreatePayrollRequest, CreateRoleRequest, PayrollResponse
 use crate::calculation::engine::PayrollCalculationEngine;
 use crate::calculation::types::{PayrollCalculationRequest, PayrollCalculationResult};
 use crate::domain::error::PayrollError;
-use crate::domain::models::{AttendanceRecord, RoleConfiguration};
+use crate::domain::models::{AttendanceRecord, RoleConfiguration, LeavePolicy, JsonbValue};
+use crate::db::DbPool;
+use crate::schema::role_configurations;
+use diesel::prelude::*;
 use chrono::Utc;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use uuid::Uuid;
+use serde_json::to_value;
 
 pub struct BatchPayrollProcessor {
     engine: PayrollCalculationEngine,
@@ -33,70 +34,84 @@ impl BatchPayrollProcessor {
 
 pub struct PayrollService {
     processor: BatchPayrollProcessor,
-    // In-memory store for roles (for demonstration purposes)
-    // In a real application, this would be a database client
-    roles: Arc<Mutex<HashMap<String, RoleConfiguration>>>,
+    pool: DbPool,
 }
 
 impl PayrollService {
-    pub fn new() -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self {
             processor: BatchPayrollProcessor::new(),
-            roles: Arc::new(Mutex::new(HashMap::new())),
+            pool,
         }
     }
 
     pub async fn create_role(&mut self, role_config: CreateRoleRequest) -> Result<RoleConfiguration, PayrollError> {
-        let mut roles = self.roles.lock().await;
+        let mut conn = self.pool.get().map_err(|_| PayrollError::DatabaseConnectionError)?;
         let role_id = Uuid::new_v4().to_string();
         let new_role = RoleConfiguration {
-            role_id: Some(role_id.clone()),
+            role_id: role_id.clone(),
             role_name: role_config.role_name,
-            base_monthly_salary: role_config.base_monthly_salary,
+            schema_version: role_config.schema_version,
+            base_salary_minor_units: role_config.base_salary_minor_units,
             currency: role_config.currency,
-            overtime_rate_multiplier: role_config.overtime_rate_multiplier,
-            leave_policies: role_config.leave_policies,
+            overtime_policy: JsonbValue(to_value(role_config.overtime_policy).map_err(|_| PayrollError::SerializationError)?),
+            leave_policies: JsonbValue(to_value(role_config.leave_policies).map_err(|_| PayrollError::SerializationError)?),
             working_hours_per_day: role_config.working_hours_per_day,
+            working_days_per_week: role_config.working_days_per_week,
             is_active: role_config.is_active,
         };
 
-        roles.insert(role_id, new_role.clone());
+        diesel::insert_into(role_configurations::table)
+            .values(&new_role)
+            .execute(&mut conn)
+            .map_err(|_| PayrollError::DatabaseQueryError)?; // TODO: Map to a more specific error
+
         Ok(new_role)
     }
 
     pub async fn update_role(&mut self, role_id: String, role_config: RoleConfiguration) -> Result<RoleConfiguration, PayrollError> {
-        let mut roles = self.roles.lock().await;
-        if !roles.contains_key(&role_id) {
-            return Err(PayrollError::ValidationError(format!("Role with ID {} not found", role_id)));
-        }
-        roles.insert(role_id, role_config.clone());
+        let mut conn = self.pool.get().map_err(|_| PayrollError::DatabaseConnectionError)?;
+        
+        diesel::update(role_configurations::table.find(role_id))
+            .set(&role_config)
+            .execute(&mut conn)
+            .map_err(|_| PayrollError::DatabaseQueryError)?;
+
         Ok(role_config)
     }
 
-    pub async fn get_all_roles(&self) -> Vec<RoleConfiguration> {
-        let roles = self.roles.lock().await;
-        roles.values().cloned().collect()
+    pub async fn get_all_roles(&self) -> Result<Vec<RoleConfiguration>, PayrollError> {
+        let mut conn = self.pool.get().map_err(|_| PayrollError::DatabaseConnectionError)?;
+        role_configurations::table
+            .load::<RoleConfiguration>(&mut conn)
+            .map_err(|_| PayrollError::DatabaseQueryError)
     }
 
-    pub async fn get_role_by_id(&self, role_id: &str) -> Option<RoleConfiguration> {
-        let roles = self.roles.lock().await;
-        roles.get(role_id).cloned()
+    pub async fn get_role_by_id(&self, role_id: &str) -> Result<Option<RoleConfiguration>, PayrollError> {
+        let mut conn = self.pool.get().map_err(|_| PayrollError::DatabaseConnectionError)?;
+        role_configurations::table
+            .find(role_id)
+            .first::<RoleConfiguration>(&mut conn)
+            .optional()
+            .map_err(|_| PayrollError::DatabaseQueryError)
     }
 
     pub async fn delete_role(&mut self, role_id: &str) -> Result<bool, PayrollError> {
-        let mut roles = self.roles.lock().await;
-        match roles.remove(role_id) {
-            Some(_) => Ok(true),
-            None => Ok(false),
-        }
+        let mut conn = self.pool.get().map_err(|_| PayrollError::DatabaseConnectionError)?;
+        let num_deleted = diesel::delete(role_configurations::table.find(role_id))
+            .execute(&mut conn)
+            .map_err(|_| PayrollError::DatabaseQueryError)?;
+        Ok(num_deleted > 0)
     }
 
     pub fn process_payroll(&self, request: CreatePayrollRequest) -> PayrollResponse {
         let mut results = Vec::new();
         let mut errors = Vec::new();
 
+        // This part of the logic might need to be updated to fetch role configs from the DB
+        // if they are not passed in the request.
         for employee in &request.employees {
-            if let Some(role_config) = request.role_configs.iter().find(|config| config.role_id.as_ref() == Some(&employee.role_id)) {
+            if let Some(role_config) = request.role_configs.iter().find(|config| config.role_id == employee.role_id) {
                 let employee_attendance: Vec<AttendanceRecord> = request.attendance_records
                     .iter()
                     .filter(|record| record.employee_id == employee.employee_id)
@@ -138,21 +153,27 @@ impl PayrollService {
     pub fn validate_configuration(&self, config: &RoleConfiguration) -> Vec<String> {
         let mut validation_errors = Vec::new();
 
-        if config.base_monthly_salary <= 0.0 {
+        if config.base_salary_minor_units <= 0 {
             validation_errors.push("Base monthly salary must be greater than 0".to_string());
-        }
-
-        if config.overtime_rate_multiplier <= 0.0 {
-            validation_errors.push("Overtime rate multiplier must be greater than 0".to_string());
         }
 
         if config.working_hours_per_day <= 0.0 || config.working_hours_per_day > 24.0 {
             validation_errors.push("Working hours per day must be between 0 and 24".to_string());
         }
 
-        for policy in &config.leave_policies {
-            if policy.salary_deduction_percent < 0.0 || policy.salary_deduction_percent > 1.0 {
-                validation_errors.push(format!("Invalid salary deduction percentage for leave type {}: must be between 0.0 and 1.0", policy.leave_type_id.0));
+        if config.working_days_per_week <= 0 || config.working_days_per_week > 7 {
+            validation_errors.push("Working days per week must be between 1 and 7".to_string());
+        }
+
+        let overtime_policy: crate::domain::models::OvertimePolicy = serde_json::from_value(config.overtime_policy.0.clone()).unwrap_or_default();
+        if overtime_policy.weekday_multiplier <= 0.0 || overtime_policy.weekend_multiplier <= 0.0 || overtime_policy.holiday_multiplier <= 0.0 {
+            validation_errors.push("Overtime multipliers must be greater than 0".to_string());
+        }
+
+        let leave_policies: Vec<LeavePolicy> = serde_json::from_value(config.leave_policies.0.clone()).unwrap_or_default();
+        for policy in &leave_policies {
+            if policy.deduction.deduction_type == "percent" && (policy.deduction.value < 0.0 || policy.deduction.value > 100.0) {
+                validation_errors.push(format!("Invalid deduction percentage for leave type {}: must be between 0.0 and 100.0", policy.leave_type_name));
             }
         }
 

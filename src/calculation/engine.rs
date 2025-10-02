@@ -3,6 +3,7 @@ use crate::domain::models::*;
 use crate::calculation::types::*;
 use chrono::{Datelike, Duration, Utc};
 use std::collections::HashMap;
+use serde_json::from_value;
 
 pub struct PayrollCalculationEngine;
 
@@ -57,7 +58,7 @@ impl PayrollCalculationEngine {
             return Err(PayrollError::InvalidDate);
         }
 
-        if request.role_config.base_monthly_salary < 0.0 {
+        if request.role_config.base_salary_minor_units < 0 {
             return Err(PayrollError::InvalidSalary);
         }
 
@@ -65,10 +66,11 @@ impl PayrollCalculationEngine {
             return Err(PayrollError::InvalidEmployeeId);
         }
 
-        for policy in &request.role_config.leave_policies {
-            if policy.salary_deduction_percent < 0.0 || policy.salary_deduction_percent > 1.0 {
+        let leave_policies: Vec<LeavePolicy> = from_value(request.role_config.leave_policies.0.clone()).unwrap_or_default();
+        for policy in &leave_policies {
+            if policy.deduction.deduction_type == "percent" && (policy.deduction.value < 0.0 || policy.deduction.value > 100.0) {
                 return Err(PayrollError::ValidationError(
-                    format!("Invalid deduction percentage for leave type: {:?}", policy.leave_type_id)
+                    format!("Invalid deduction percentage for leave type: {}", policy.leave_type_name)
                 ));
             }
         }
@@ -90,15 +92,17 @@ impl PayrollCalculationEngine {
 
                 if let Some(record) = request.attendance_records.iter().find(|r| r.date == current_date) {
                     match &record.status {
-                        AttendanceStatus::Present { hours_worked: _, overtime_hours } => {
+                        AttendanceStatus::Present => {
                             result.present_days += 1;
-                            result.overtime_hours += overtime_hours;
+                            result.overtime_hours += record.overtime_hours.unwrap_or(0.0);
                         },
-                        AttendanceStatus::Absent { .. } => {
+                        AttendanceStatus::Absent => {
                             result.absent_days += 1;
                         },
-                        AttendanceStatus::OnLeave { leave_type_id, .. } => {
-                            *result.leave_days.entry(leave_type_id.clone()).or_insert(0) += 1;
+                        AttendanceStatus::OnLeave => {
+                            if let Some(leave_type_id) = &record.leave_type_id {
+                                *result.leave_days.entry(leave_type_id.clone()).or_insert(0) += 1;
+                            }
                         },
                         AttendanceStatus::Holiday => {
                             result.holiday_days += 1;
@@ -130,7 +134,7 @@ impl PayrollCalculationEngine {
     }
 
     fn calculate_base_salary(&self, request: &PayrollCalculationRequest, result: &mut PayrollCalculationResult) -> Result<(), PayrollError> {
-        result.base_salary = request.role_config.base_monthly_salary;
+        result.base_salary = request.role_config.base_salary_minor_units as f64 / 100.0;
 
         if result.total_working_days > 0 {
             let expected_working_days = request.company_config.working_days_per_month as u32;
@@ -152,14 +156,17 @@ impl PayrollCalculationEngine {
 
     fn calculate_overtime(&self, request: &PayrollCalculationRequest, result: &mut PayrollCalculationResult) -> Result<(), PayrollError> {
         if result.overtime_hours > 0.0 {
+            let overtime_policy: OvertimePolicy = from_value(request.role_config.overtime_policy.0.clone()).unwrap();
             let hourly_rate = result.base_salary / (result.total_working_days as f64 * request.role_config.working_hours_per_day);
-            result.overtime_amount = result.overtime_hours * hourly_rate * request.role_config.overtime_rate_multiplier;
+            
+            // This is a simplified logic. A more robust implementation would check the day for each overtime entry.
+            result.overtime_amount = result.overtime_hours * hourly_rate * overtime_policy.weekday_multiplier;
 
             result.calculation_steps.push(CalculationStep {
                 step_type: "overtime".to_string(),
                 description: format!("Overtime: {:.1} hours × {:.2} rate × {:.1}x = {} {}",
                                    result.overtime_hours, hourly_rate,
-                                   request.role_config.overtime_rate_multiplier,
+                                   overtime_policy.weekday_multiplier,
                                    result.overtime_amount, result.currency),
                 amount: result.overtime_amount,
                 details: None,
@@ -194,20 +201,22 @@ impl PayrollCalculationEngine {
             0.0
         };
 
-        for (leave_type_id, days) in &result.leave_days {
-            if let Some(policy) = request.role_config.leave_policies.iter()
-                .find(|p| &p.leave_type_id == leave_type_id) {
+        let leave_policies: Vec<LeavePolicy> = from_value(request.role_config.leave_policies.0.clone()).unwrap_or_default();
 
-                let deduction = (*days as f64) * daily_rate * policy.salary_deduction_percent;
+        for (leave_type_id, days) in &result.leave_days {
+            if let Some(policy) = leave_policies.iter().find(|p| &p.leave_type_id == &leave_type_id.0) {
+                let deduction = match policy.deduction.deduction_type.as_str() {
+                    "percent" => (*days as f64) * daily_rate * (policy.deduction.value / 100.0),
+                    "flat" => policy.deduction.value,
+                    _ => 0.0,
+                };
                 result.leave_deductions.insert(leave_type_id.clone(), deduction);
 
                 if deduction > 0.0 {
                     result.calculation_steps.push(CalculationStep {
                         step_type: "leave_deduction".to_string(),
-                        description: format!("Leave deduction ({}): {} days × {:.2} × {:.0}% = {} {}",
-                                           leave_type_id.0, days, daily_rate,
-                                           policy.salary_deduction_percent * 100.0,
-                                           deduction, result.currency),
+                        description: format!("Leave deduction ({}): {} days = {} {}",
+                                           policy.leave_type_name, days, deduction, result.currency),
                         amount: deduction,
                         details: None,
                     });
@@ -298,10 +307,10 @@ impl PayrollCalculationEngine {
         if config.weekly_off_days.is_empty() {
             return date.weekday() == chrono::Weekday::Sun;
         }
-        config.weekly_off_days.contains(&date.weekday())
+        config.weekly_off_days.iter().any(|d| d.as_deref() == Some(date.weekday().to_string().as_str()))
     }
 
     fn is_holiday(&self, config: &CompanyConfiguration, date: chrono::NaiveDate) -> bool {
-        config.special_holidays.contains(&date)
+        config.special_holidays.iter().any(|d| d.as_ref() == Some(&date))
     }
 }

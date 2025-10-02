@@ -1,7 +1,10 @@
 use basics::calculation::engine::PayrollCalculationEngine;
 use basics::calculation::types::{AdditionalPayment, Deduction, PayrollCalculationRequest};
 use basics::config::builder::PayrollConfigurationBuilder;
-use basics::domain::models::{AttendanceRecord, AttendanceStatus, LeaveTypeId, LeavePolicy};
+use basics::domain::models::{
+    AttendanceRecord, AttendanceStatus, Deduction as DomainDeduction, JsonbValue, LeavePolicy,
+    LeaveTypeId,
+};
 use basics::services::payroll_service::BatchPayrollProcessor;
 use chrono::{NaiveDate, Utc};
 
@@ -17,53 +20,59 @@ fn test_dynamic_payroll_calculation() {
         role_config: PayrollConfigurationBuilder::create_sample_role_config(),
         attendance_records: vec![
             AttendanceRecord {
+                id: 1,
                 employee_id: "EMP001".to_string(),
                 date: NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-                status: AttendanceStatus::Present {
-                    hours_worked: 8.0,
-                    overtime_hours: 2.0,
-                },
+                status: AttendanceStatus::Present,
+                hours_worked: Some(8.0),
+                overtime_hours: Some(2.0),
+                reason: None,
+                leave_type_id: None,
+                hours_deducted: None,
                 recorded_at: Utc::now(),
                 recorded_by: "SYSTEM".to_string(),
             },
             AttendanceRecord {
+                id: 2,
                 employee_id: "EMP001".to_string(),
                 date: NaiveDate::from_ymd_opt(2024, 3, 4).unwrap(),
-                status: AttendanceStatus::Absent {
-                    reason: Some("Personal".to_string()),
-                },
+                status: AttendanceStatus::Absent,
+                hours_worked: None,
+                overtime_hours: None,
+                reason: Some("Personal".to_string()),
+                leave_type_id: None,
+                hours_deducted: None,
                 recorded_at: Utc::now(),
                 recorded_by: "SYSTEM".to_string(),
             },
             AttendanceRecord {
+                id: 3,
                 employee_id: "EMP001".to_string(),
                 date: NaiveDate::from_ymd_opt(2024, 3, 5).unwrap(),
-                status: AttendanceStatus::OnLeave {
-                    leave_type_id: LeaveTypeId::new("SICK"),
-                    hours_deducted: None,
-                },
+                status: AttendanceStatus::OnLeave,
+                hours_worked: None,
+                overtime_hours: None,
+                reason: None,
+                leave_type_id: Some(LeaveTypeId::new("SICK")),
+                hours_deducted: None,
                 recorded_at: Utc::now(),
                 recorded_by: "SYSTEM".to_string(),
             },
         ],
-        additional_payments: vec![
-            AdditionalPayment {
-                id: "BONUS001".to_string(),
-                name: "Performance Bonus".to_string(),
-                amount: 500.0,
-                is_taxable: true,
-                description: Some("Q1 Performance".to_string()),
-            }
-        ],
-        deductions: vec![
-            Deduction {
-                id: "TAX001".to_string(),
-                name: "Income Tax".to_string(),
-                amount: 800.0,
-                is_pre_tax: false,
-                description: Some("Federal Tax".to_string()),
-            }
-        ],
+        additional_payments: vec![AdditionalPayment {
+            id: "BONUS001".to_string(),
+            name: "Performance Bonus".to_string(),
+            amount: 500.0,
+            is_taxable: true,
+            description: Some("Q1 Performance".to_string()),
+        }],
+        deductions: vec![Deduction {
+            id: "TAX001".to_string(),
+            name: "Income Tax".to_string(),
+            amount: 800.0,
+            is_pre_tax: false,
+            description: Some("Federal Tax".to_string()),
+        }],
     };
 
     let result = engine.calculate(request).unwrap();
@@ -96,24 +105,33 @@ fn test_custom_leave_policies() {
     let engine = PayrollCalculationEngine::new();
 
     let mut role_config = PayrollConfigurationBuilder::create_sample_role_config();
-    role_config.leave_policies = vec![
+    let leave_policies = vec![
         LeavePolicy {
-            leave_type_id: LeaveTypeId::new("MATERNITY"),
-            salary_deduction_percent: 0.0,
-            max_days_per_month: None,
-            max_days_per_year: Some(90),
+            leave_type_id: "MATERNITY".to_string(),
+            leave_type_name: "Maternity".to_string(),
+            deduction: DomainDeduction {
+                deduction_type: "percent".to_string(),
+                value: 0.0,
+            },
+            max_days_per_month: 30,
+            max_days_per_year: 90,
             requires_approval: true,
             carry_forward_allowed: false,
         },
         LeavePolicy {
-            leave_type_id: LeaveTypeId::new("STUDY"),
-            salary_deduction_percent: 0.5,
-            max_days_per_month: Some(5),
-            max_days_per_year: Some(30),
+            leave_type_id: "STUDY".to_string(),
+            leave_type_name: "Study".to_string(),
+            deduction: DomainDeduction {
+                deduction_type: "percent".to_string(),
+                value: 50.0,
+            },
+            max_days_per_month: 5,
+            max_days_per_year: 30,
             requires_approval: true,
             carry_forward_allowed: false,
         },
     ];
+    role_config.leave_policies = JsonbValue(serde_json::to_value(leave_policies).unwrap());
 
     let request = PayrollCalculationRequest {
         employee_id: "EMP002".to_string(),
@@ -123,22 +141,28 @@ fn test_custom_leave_policies() {
         role_config,
         attendance_records: vec![
             AttendanceRecord {
+                id: 1,
                 employee_id: "EMP002".to_string(),
                 date: NaiveDate::from_ymd_opt(2024, 3, 5).unwrap(),
-                status: AttendanceStatus::OnLeave {
-                    leave_type_id: LeaveTypeId::new("STUDY"),
-                    hours_deducted: None,
-                },
+                status: AttendanceStatus::OnLeave,
+                hours_worked: None,
+                overtime_hours: None,
+                reason: None,
+                leave_type_id: Some(LeaveTypeId::new("STUDY")),
+                hours_deducted: None,
                 recorded_at: Utc::now(),
                 recorded_by: "SYSTEM".to_string(),
             },
             AttendanceRecord {
+                id: 2,
                 employee_id: "EMP002".to_string(),
                 date: NaiveDate::from_ymd_opt(2024, 3, 6).unwrap(),
-                status: AttendanceStatus::OnLeave {
-                    leave_type_id: LeaveTypeId::new("MATERNITY"),
-                    hours_deducted: None,
-                },
+                status: AttendanceStatus::OnLeave,
+                hours_worked: None,
+                overtime_hours: None,
+                reason: None,
+                leave_type_id: Some(LeaveTypeId::new("MATERNITY")),
+                hours_deducted: None,
                 recorded_at: Utc::now(),
                 recorded_by: "SYSTEM".to_string(),
             },
@@ -153,9 +177,15 @@ fn test_custom_leave_policies() {
     println!("Leave Days: {:?}", result.leave_days);
     println!("Leave Deductions: {:?}", result.leave_deductions);
 
-    assert!(result.leave_deductions.contains_key(&LeaveTypeId::new("STUDY")));
-    assert!(!result.leave_deductions.contains_key(&LeaveTypeId::new("MATERNITY"))
-            || result.leave_deductions[&LeaveTypeId::new("MATERNITY")] == 0.0);
+    assert!(result
+        .leave_deductions
+        .contains_key(&LeaveTypeId::new("STUDY")));
+    assert!(
+        !result
+            .leave_deductions
+            .contains_key(&LeaveTypeId::new("MATERNITY"))
+            || result.leave_deductions[&LeaveTypeId::new("MATERNITY")] == 0.0
+    );
 }
 
 #[test]
@@ -191,5 +221,8 @@ fn test_batch_processing() {
     assert!(results[0].is_ok());
     assert!(results[1].is_ok());
 
-    println!("Batch processing completed successfully for {} employees", results.len());
+    println!(
+        "Batch processing completed successfully for {} employees",
+        results.len()
+    );
 }

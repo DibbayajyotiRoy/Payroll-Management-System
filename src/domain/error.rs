@@ -1,28 +1,26 @@
-use std::fmt;
+use serde::Serialize;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Error)]
 pub enum PayrollError {
+    #[error("Invalid date provided")]
     InvalidDate,
+    #[error("Employee ID not found")]
     InvalidEmployeeId,
+    #[error("Role ID not found")]
     InvalidRoleId,
+    #[error("Invalid salary amount")]
     InvalidSalary,
+    #[error("Invalid payload: {0}")]
     InvalidPayload(String),
+    #[error("Calculation error: {0}")]
     CalculationError(String),
+    #[error("Validation error: {0}")]
     ValidationError(String),
+    #[error("Database connection error")]
+    DatabaseConnectionError,
+    #[error("Database query error")]
+    DatabaseQueryError,
+    #[error("Serialization error")]
+    SerializationError,
 }
-
-impl fmt::Display for PayrollError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PayrollError::InvalidDate => write!(f, "Invalid date provided"),
-            PayrollError::InvalidEmployeeId => write!(f, "Employee ID not found"),
-            PayrollError::InvalidRoleId => write!(f, "Role ID not found"),
-            PayrollError::InvalidSalary => write!(f, "Invalid salary amount"),
-            PayrollError::InvalidPayload(msg) => write!(f, "Invalid payload: {}", msg),
-            PayrollError::CalculationError(msg) => write!(f, "Calculation error: {}", msg),
-            PayrollError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for PayrollError {}

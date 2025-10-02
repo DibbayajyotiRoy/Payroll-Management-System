@@ -42,8 +42,9 @@ pub async fn get_role_by_id(app_state: web::Data<AppState>, path: web::Path<Stri
     let role_id = path.into_inner();
     let payroll_service = app_state.lock().await;
     match payroll_service.get_role_by_id(&role_id).await {
-        Some(role) => Ok(HttpResponse::Ok().json(role)),
-        None => Ok(HttpResponse::NotFound().body(format!("Role with ID {} not found", role_id))),
+        Ok(Some(role)) => Ok(HttpResponse::Ok().json(role)),
+        Ok(None) => Ok(HttpResponse::NotFound().body(format!("Role with ID {} not found", role_id))),
+        Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
     }
 }
 

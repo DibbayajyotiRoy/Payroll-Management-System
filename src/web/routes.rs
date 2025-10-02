@@ -2,7 +2,10 @@ use crate::web::{payroll_handler, role_handler};
 use actix_web::web;
 
 pub fn configure_routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(payroll_handler::process_payroll_handler)
+    cfg.service(
+        web::resource("/payroll/{employee_id}")
+            .route(web::get().to(payroll_handler::calculate_payroll_handler))
+    )
        .service(role_handler::create_role)
        .service(role_handler::update_role)
        .service(role_handler::get_all_roles)
