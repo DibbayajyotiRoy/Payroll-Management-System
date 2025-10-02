@@ -36,8 +36,8 @@ This separation allows for independent scaling and development of each component
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repo-url>
-    cd <your-repo-folder>
+    git clone https://github.com/DibbayajyotiRoy/Payroll-Management-System
+    cd Payroll-Management-System
     ```
 
 2.  **Set up the environment:**
@@ -149,7 +149,7 @@ This separation allows for independent scaling and development of each component
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repo-url>
+    git clone https://github.com/DibbayajyotiRoy/Payroll-Management-System
     cd <your-repo-folder>
     ```
 

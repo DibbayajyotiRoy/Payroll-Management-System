@@ -31,12 +31,13 @@ REQUIRES = [
 ]
 
 setup(
-    name=NAME,
-    version=VERSION,
+    name="dibbayajyotiroy-payroll-sdk",
+    version="0.1.0",
     description="Rust Payroll System API  v1.0",
-    author="OpenAPI Generator community",
-    author_email="team@openapitools.org",
-    url="",
+    author="Dibbayajyoti Roy",
+    author_email="dibbayajyoti@gmail.com",
+    url="https://github.com/DibbayajyotiRoy/Payroll-Management-System",
+    license="MIT",
     keywords=["OpenAPI", "OpenAPI-Generator", "Rust Payroll System API  v1.0"],
     install_requires=REQUIRES,
     packages=find_packages(exclude=["test", "tests"]),
